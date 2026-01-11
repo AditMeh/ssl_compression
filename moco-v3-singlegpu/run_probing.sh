@@ -1,0 +1,2 @@
+python extract_features.py imagenette2 imagenette2_tensors
+
