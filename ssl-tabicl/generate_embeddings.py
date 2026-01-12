@@ -1,40 +1,60 @@
-from transformers import AutoImageProcessor, AutoModel
 from PIL import Image
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 import torch
+import torchvision.transforms as transforms
 import argparse
 import sys
 
-# Load model and processor once
-print("Loading DINOv2 model and processor...")
-processor = AutoImageProcessor.from_pretrained('facebook/dinov2-small', use_fast=True)
-model = AutoModel.from_pretrained('facebook/dinov2-small')
+# Load model once
+print("Loading DINOv2 model...")
+model = torch.hub.load("facebookresearch/dinov2", "dinov2_vitb14")
 model.eval()  # Set to evaluation mode
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model.to(device)
 print(f"Using device: {device}")
 
-def process_image(image_path, processor, model, device):
+# Set up augmentation pipeline (matching imagenet_susbset.py) + ImageNet norm
+res = 224
+crop_res = 224
+crop_mode = "center"  # Can be "center" or "random"
+mean = [0.485, 0.456, 0.406]
+std = [0.229, 0.224, 0.225]
+
+transform = transforms.Compose(
+    [
+        transforms.Resize(res),
+        (
+            transforms.CenterCrop(crop_res)
+            if crop_mode == "center"
+            else transforms.RandomCrop(crop_res)
+        ),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean, std=std),
+    ]
+)
+
+def process_image(image_path, transform, model, device):
     """Process a single image and return its embedding."""
     try:
         image = Image.open(image_path).convert('RGB')
-        inputs = processor(images=image, return_tensors="pt")
-        inputs = {k: v.to(device) for k, v in inputs.items()}
+        # Apply transforms
+        image_tensor = transform(image).unsqueeze(0)  # Add batch dimension
+        image_tensor = image_tensor.to(device)
         
         with torch.no_grad():
-            outputs = model(**inputs)
-            last_hidden_states = outputs.last_hidden_state[..., 0, :]
-            # Convert to numpy and squeeze batch dimension: [1, 384] -> [384]
-            embedding = last_hidden_states.cpu().numpy().squeeze(0)
+            # DINOv2 models from torch.hub return CLS token directly as [batch, dim]
+            outputs = model(image_tensor)
+            # Convert to numpy and squeeze batch dimension: [1, 768] -> [768]
+            embedding = outputs.cpu().numpy().squeeze(0)
         return embedding
     except Exception as e:
         print(f"Error processing {image_path}: {e}")
         return None
 
-def process_folder(input_folder, output_base_folder, processor, model, device):
+def process_folder(input_folder, output_base_folder, transform, model, device):
     """Recursively process all images in a folder and save embeddings with identical structure.
     
     For example, if input_folder is 'foldera/folderb', it will create 'embeddings/folderb/'
@@ -62,7 +82,7 @@ def process_folder(input_folder, output_base_folder, processor, model, device):
     
     # Process all images with progress bar
     for img_path, output_path_npy in tqdm(image_files, desc=f"Processing {root_folder_name}"):
-        embedding = process_image(img_path, processor, model, device)
+        embedding = process_image(img_path, transform, model, device)
         if embedding is not None:
             np.save(output_path_npy, embedding)
 
@@ -91,7 +111,7 @@ print(f"\nProcessing folder: {input_path}")
 process_folder(
     input_path,
     output_base,
-    processor,
+    transform,
     model,
     device
 )

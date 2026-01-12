@@ -119,9 +119,9 @@ def get_satellite_train_embeddings(percent=100, root_dir="embeddings/satellite",
         If percent=50, then only 50% of the training set is used.
     """
     assert 1 <= train_percent <= 99, "train_percent must be between 1 and 99"
-    
+
     class_names = sorted([d for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d))])
-    
+
     # Load all embeddings from all classes
     all_embeddings = []
     all_labels = []
