@@ -108,7 +108,7 @@ def evaluate(val_dataloader, model):
     return accuracy, avg_loss
 
 wandb.init(
-    project='mocov3_singlegpu',
+    project='fixed-size-compression-ssl',
     name=args.run_name,
 )
 step = 0
