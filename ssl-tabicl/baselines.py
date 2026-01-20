@@ -59,16 +59,50 @@ def compute_random_representatives(class_embeddings):
     
     return np.array(representatives), np.array(labels)
 
+def compute_shuffled_percent(class_embeddings, percent=100, seed=42):
+    """Compute ICL samples as a random percentage of the shuffled train set."""
+    # Load all embeddings from all classes
+    all_embeddings = []
+    all_labels = []
+    class_names = sorted(class_embeddings.keys())
+    
+    for class_idx, class_name in enumerate(class_names):
+        embeddings = class_embeddings[class_name]  # (N, D)
+        for emb in embeddings:
+            all_embeddings.append(emb)
+            all_labels.append(class_idx)
+    
+    # Convert to numpy arrays
+    all_embeddings = np.stack(all_embeddings)  # (N, D)
+    all_labels = np.array(all_labels)  # (N,)
+    
+    # Shuffle with fixed seed
+    rng = np.random.RandomState(seed)
+    indices = np.arange(len(all_embeddings))
+    rng.shuffle(indices)
+    all_embeddings = all_embeddings[indices]
+    all_labels = all_labels[indices]
+    
+    # Take percentage of shuffled data
+    n_total = len(all_embeddings)
+    n_use = int(np.ceil((percent / 100.0) * n_total))
+    embeddings = all_embeddings[:n_use]
+    labels = all_labels[:n_use]
+    
+    return embeddings, labels
+
 def main():
     parser = argparse.ArgumentParser(description="Create baseline class representatives from embeddings")
     parser.add_argument("embeddings_dir", type=str, help="Path to embeddings directory")
     parser.add_argument("--output", "-o", type=str, default="baselines.npy", help="Output .npy file")
-    parser.add_argument("--method", type=str, choices=["centroid", "random"], default="centroid",
-                       help="Method to compute representatives: centroid or random")
+    parser.add_argument("--method", type=str, choices=["centroid", "random", "shuffled_percent"], default="centroid",
+                       help="Method to compute representatives: centroid, random, or shuffled_percent")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for random sampling")
+    parser.add_argument("--percent", type=float, default=100.0, 
+                       help="Percentage of shuffled train set to use (for shuffled_percent method, default: 100.0)")
     args = parser.parse_args()
     
-    if args.method == "random":
+    if args.method in ["random", "shuffled_percent"]:
         random.seed(args.seed)
         np.random.seed(args.seed)
     
@@ -81,6 +115,8 @@ def main():
         representatives, labels = compute_centroid_representatives(class_embeddings)
     elif args.method == "random":
         representatives, labels = compute_random_representatives(class_embeddings)
+    elif args.method == "shuffled_percent":
+        representatives, labels = compute_shuffled_percent(class_embeddings, percent=args.percent, seed=args.seed)
     else:
         raise ValueError(f"Unknown method: {args.method}")
     

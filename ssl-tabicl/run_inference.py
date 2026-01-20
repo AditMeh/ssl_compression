@@ -14,10 +14,12 @@ def main():
     parser = argparse.ArgumentParser(description="Run synthetic inference with TabICLClassifier")
     parser.add_argument("--icl_samples", type=str, default="data.npy",
                         help="Path to the .npy file containing ICL samples (default: data.npy)")
+    parser.add_argument("--embeddings_dir", type=str, default="embeddings/imagenette2",
+                        help="Path to the embeddings directory (default: embeddings/imagenette2)")
     args = parser.parse_args()
 
     # Load test set once (fixed for all trials)
-    embeddings_test, labels_test = get_imagenet_test_embeddings(root_dir="embeddings/imagenette2", train_folder="train", test_folder="val")
+    embeddings_test, labels_test = get_imagenet_test_embeddings(root_dir=args.embeddings_dir, train_folder="train", test_folder="val")
     print(f"Test set shape: {embeddings_test.shape}")
     print(f"Test set labels shape: {labels_test.shape}")
 
