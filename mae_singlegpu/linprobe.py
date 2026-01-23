@@ -9,6 +9,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
+import wandb
 
 class TensorFolderDataset(Dataset):
     """Dataset that loads tensors, structured like ImageFolder.
@@ -115,12 +116,23 @@ def main():
     parser.add_argument('--input-dim', type=int, default=512, help='input embedding dimension')
     parser.add_argument('--gpu', default=0, type=int, help='GPU id to use (default: 0)')
     parser.add_argument('--num-workers', type=int, default=4, help='number of data loading workers')
-    
+    parser.add_argument('--wandb-project', default='fixed-size-compression-ssl', type=str,
+                        help='wandb project name')
+    parser.add_argument('--wandb-name', default=None, type=str,
+                        help='wandb run name')
     args = parser.parse_args()
     
     # Set device
     device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
+
+    # Initialize wandb (like main_pretrain_singlegpu_embeddings.py)
+    wandb.init(
+        project=args.wandb_project,
+        name=args.wandb_name,
+        entity="aditmeh",  # like the reference script
+        config=vars(args)
+    )
     
     # Load datasets - first train to discover classes, then val uses same class mapping
     train_path = Path(args.data_path) / 'train'
@@ -209,6 +221,13 @@ def main():
         
         train_acc = 100 * train_correct / train_total
         avg_loss = train_loss / len(dataloader_train)
+
+        # Log training metrics to wandb
+        wandb.log({
+            "epoch": epoch,
+            "train_loss": avg_loss,
+            "train_acc": train_acc,
+        })
         
         print(f"Epoch {epoch+1}/{args.epochs} - Train Loss: {avg_loss:.4f}, Train Acc: {train_acc:.2f}%")
         
@@ -216,6 +235,12 @@ def main():
         if (epoch + 1) % 5 == 0:
             val_acc = evaluate(model, dataloader_val, device)
             print(f"Epoch {epoch+1}/{args.epochs} - Val Acc: {val_acc:.2f}%")
+            
+            # Log validation metrics to wandb
+            wandb.log({
+                "epoch": epoch,
+                "val_acc": val_acc,
+            })
             
             if val_acc > best_acc:
                 best_acc = val_acc
@@ -226,6 +251,12 @@ def main():
     final_val_acc = evaluate(model, dataloader_val, device)
     print(f"Final validation accuracy: {final_val_acc:.2f}%")
     print(f"Best validation accuracy: {best_acc:.2f}%")
+    wandb.log({
+        "final_val_acc": final_val_acc,
+        "best_val_acc": best_acc,
+        "epochs_completed": args.epochs
+    })
+    wandb.finish()
 
 
 if __name__ == '__main__':

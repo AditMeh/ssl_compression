@@ -201,7 +201,7 @@ def get_args_parser():
 
     parser.add_argument('--output_dir', default='./output_dir',
                         help='path where to save, empty for no saving')
-    parser.add_argument('--wandb_project', default='mae-pretrain', type=str,
+    parser.add_argument('--wandb_project', default='fixed-size-compression-ssl', type=str,
                         help='wandb project name')
     parser.add_argument('--wandb_name', default=None, type=str,
                         help='wandb run name')
@@ -256,6 +256,7 @@ def main(args):
     wandb.init(
         project=args.wandb_project,
         name=args.wandb_name,
+        entity="aditmeh",
         config=vars(args)
     )
 
